@@ -16,7 +16,7 @@ sentences_en = [s.split(" ") for s in english.split("\n")]
 
 
 # This should be len(sentences_fr), but can be lowered in testing
-num_sentences = 100
+num_sentences = 10
 
 # This also only serves testing purposes: it makes sure we only use
 # the words that actually occur in the first num_sentences
@@ -25,20 +25,30 @@ words_en = set("".join(english.split("\n")[:num_sentences]).split(" "))
 
 ########
 ## Initialize the translation probabilities t(f | e)
-# Should we initialise q s.t. we can use it to initialise q for model2?
+#
 # Check if this is a proper probability distribution. I.e., should we normalize?
 t = Vividict()
+
+# parameter are initialised either 'uniform', 'random' or 'model1'
+par_init = 'random'
+
 for k in range(num_sentences):
-	for i, f in enumerate(sentences_fr[k]):
-		for e in sentences_en[k]:
-			if t[f][e] == {}:
-				t[f][e] = np.random.rand(1)[0] #Should we pick a lower random nr, because the sum of p is way over 1
+    for i, f in enumerate(sentences_fr[k]):
+        for e in sentences_en[k]:
+            if t[f][e] == {}:
+                if par_init == 'random':
+                    t[f][e] = np.random.rand(1)[0]
+                elif par_init == 'uniform':
+                    t[f][e] = 1 / len(t[f])
+                elif par_init == 'model1':
+                    t[f][e] = 0,1
+                                    
 
 
 
 ########### 
 ## E-M algorithm
-num_timesteps = 200         
+num_timesteps = 20         
 for ts in range(num_timesteps):
         #print "Starting iteration %s" % ts
 
@@ -66,7 +76,7 @@ for ts in range(num_timesteps):
         for f in words_fr:
                 for e in words_en:
                         t[f][e] = (counts_ef[e][f] + 0.0) / (counts_e[e] + 0.0)
-
+print t['et']
 #print t["et"]['and'] # converges to 1
 #print t["et"]['first'] # conversges to 0
 #print sum(t["et"][e] for e in words_en)# check whether probabilities eventually add up to 1!

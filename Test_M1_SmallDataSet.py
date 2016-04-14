@@ -2,43 +2,29 @@
 import numpy as np
 from helpers import *
 
-# Load sample data (first 100 lines only)
-english_file = open('data/sample.e', 'r')
-english = english_file.read()
-french_file = open('data/sample.f', 'r')
-french = french_file.read()
+sentences_fr = [['das', 'haus'],['das', 'buch'],['ein', 'buch']]
+sentences_en = [['the', 'house'],['the', 'book'],['a', 'book']]
 
-# Split the texts into lists of sentences, which in turn will be 
-# lists of words:
-# sentences_en [ ["Hello", "World", "!"], ["What", "a", "nice", "day"], ...]
-sentences_fr = [s.split(" ") for s in french.split("\n")]
-sentences_en = [s.split(" ") for s in english.split("\n")]
+words_fr = set(['das', 'haus', 'buch', 'ein'])
+words_en = set(['the', 'house', 'book', 'a'])
 
-
-# This should be len(sentences_fr), but can be lowered in testing
-num_sentences = 100
-
-# This also only serves testing purposes: it makes sure we only use
-# the words that actually occur in the first num_sentences
-words_fr = set("".join(french.split("\n")[:num_sentences]).split(" "))
-words_en = set("".join(english.split("\n")[:num_sentences]).split(" "))
+num_sentences = 3
 
 ########
 ## Initialize the translation probabilities t(f | e)
-# Should we initialise q s.t. we can use it to initialise q for model2?
+#
 # Check if this is a proper probability distribution. I.e., should we normalize?
 t = Vividict()
 for k in range(num_sentences):
 	for i, f in enumerate(sentences_fr[k]):
 		for e in sentences_en[k]:
-			if t[f][e] == {}:
-				t[f][e] = np.random.rand(1)[0] #Should we pick a lower random nr, because the sum of p is way over 1
-
+			if t[f][e] == {}: # why a conditional?
+				t[f][e] = np.random.rand(1)[0]
 
 
 ########### 
 ## E-M algorithm
-num_timesteps = 200         
+num_timesteps = 1000        
 for ts in range(num_timesteps):
         #print "Starting iteration %s" % ts
 
@@ -67,7 +53,9 @@ for ts in range(num_timesteps):
                 for e in words_en:
                         t[f][e] = (counts_ef[e][f] + 0.0) / (counts_e[e] + 0.0)
 
-#print t["et"]['and'] # converges to 1
-#print t["et"]['first'] # conversges to 0
-#print sum(t["et"][e] for e in words_en)# check whether probabilities eventually add up to 1!
+print t
+print sum(t['buch'][e] for e in words_en)
 
+# {'buch': {'a': 0.00050143856526195963, 'house': 0.0, 'the': 5.6385343860565903e-301, 'book': 1.0}, 'ein': {'a': 0.99949856143473792, 'house': 0.0, 'the': 0.0, 'book': 7.1844716990123485e-300}, 'haus': {'a': 0.0, 'house': 0.99949797091102255, 'the': 2.0853225798067474e-299, 'book': 0.0}, 'das': {'a': 0.0, 'house': 0.00050202908897742414, 'the': 1.0, 'book': 6.3887476442035224e-301}}
+# 1.00050143857
+# Should 'house' be in the dictionary of 'buch'? There is no sentence pair (f,e) s.t. 'buch' is in f and ''house' is in e  
