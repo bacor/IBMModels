@@ -1,7 +1,7 @@
 import numpy as np
 from collections import Counter
 from helpers import *
-
+from time import time
 
 class IBM1:
 	"""Implementation of the IBM 1 model
@@ -22,48 +22,40 @@ class IBM1:
 
 
 	def initialize(self):
-		print "Start initialization"
-		# Counters are not made for storing floats, 
-		# but indexing is so convenient...
+		"""Uniformly initializes the translation probabilities
+		Note that the translation probabilities are unnormalized
+		"""
 		t = Counter() 
-
-		# Random initialization
 		for E, F in zip(self.EN, self.FR):
 			for f in F:
 				for e in E:
-					if t[(f, e)] == 0:
-						t[(f, e)] = np.random.rand(1)[0]
-
-		print "Start normalization"
-
-		# Normalize all 'rows' s.t. sum_fi t(f | e) = 1
-		for e in self.voc_en:
-			C = sum([ t[(f, e)] for f in self.voc_fr ])
-			for f in self.voc_fr:
-				t[(f, e)] = t[(f, e)] / C
-
+					t[(f, e)] = 1.0
 		return t
 
 	def train(self, num_iter):
+		"""Train the IBM1 model
+		Return:
+			t: the translation probabilities
+			likelihoods: the log-likelihood of the data after every iteration
+		"""
+
 		t = self.initialize()
 		likelihoods = []
+		counts_ef = Counter()
+		counts_e  = Counter()
 
 		for ts in range(num_iter):
-			print "Starting iteration %s" % ts
-
-			counts_ef = Counter()
-			counts_e  = Counter()
+			t0 = time()
+			counts_ef.clear()
+			counts_e.clear()
 
 			# E-step
 			for E, F in zip(self.EN, self.FR):
 				for f in F:
-					# Outside the loop over english words since you only
-					# need to calculate this once.
-					delta_sum = sum([t[(f, e)] for e in E])
-
+					delta_sum = sum([t[(f, e)] for e in E])					
 					for e in E:
 						# delta(k, j, j) = p(A_i = j | e, f, m )
-						delta = t[(f, e)] / delta_sum  
+						delta = t[(f, e)] / delta_sum
 						counts_ef[(e, f)] += delta
 						counts_e[e] += delta
 
@@ -78,16 +70,22 @@ class IBM1:
 				likelihood += self.log_likelihood(F, E, t)
 			likelihoods += [likelihood]
 
+			# Remove zero-entries
+			t += Counter()
+
+			print("Iteration %s finished in %ss. Log-likelhood: %s" % (ts, round(time() - t0, 1), round(likelihood, 2)))
+
 		return t, likelihoods
 
 
 	def log_likelihood(self, F, E, t):
+		"""Log-likelihood of a pair of a French and English sentence"""
 		L = 0
 		for f in F:
 			L += np.log(sum([t[(f, e)] for e in E]))
 
-		# "Multiply" by (1/ (l +1) )^m and return
-		return L - len(F) * np.log(len(E))
+		# For normalization, you could multiply (substract) by (1/ (l +1) )^m
+		return L #- len(F) * np.log(len(E))
 
 
 if __name__ ==  "__main__":
@@ -99,7 +97,8 @@ if __name__ ==  "__main__":
 	french = french_file.read()
 	french_full = open('data/hansards.36.2.f').read()
 
-	M = IBM1(english_full, french_full, limit=1000)
-	t, likelihoods = M.train(10)
+	M = IBM1(english_full, french_full, limit=40)
+	print("Start training")
+	t, likelihoods = M.train(5)
 	print likelihoods
 
