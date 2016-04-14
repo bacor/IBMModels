@@ -1,73 +1,184 @@
-# Imports
 import numpy as np
+from collections import Counter
 from helpers import *
+from time import time
+import cProfile
+from copy import copy
 
-# Load sample data (first 100 lines only)
-english_file = open('data/sample.e', 'r')
-english = english_file.read()
-french_file = open('data/sample.f', 'r')
-french = french_file.read()
+class IBM1:
+	"""Implementation of the IBM 1 model
 
-# Split the texts into lists of sentences, which in turn will be 
-# lists of words:
-# sentences_en [ ["Hello", "World", "!"], ["What", "a", "nice", "day"], ...]
-sentences_fr = [s.split(" ") for s in french.split("\n")]
-sentences_en = [s.split(" ") for s in english.split("\n")]
+	In the code, the list of english sentences is called `EN`
+	and the one with french sentences `FR`. A sentence is always
+	named by a single capital: `E` for an English sentence and 
+	and `F` for a french. Words in a sentence are then the corresonding
+	lowercase characters `e` and `f`.
+	"""
+
+	def __init__(self, english, french, null = 1.0, 
+		name="", desc="", start=0, limit=-1, out_dir=""):
+		self.FR = text2sentences(french)[start:limit]
+		self.EN = text2sentences(english)[start:limit]
+		self.EN = map(add_null, self.EN)
+
+		self.voc_fr = sentences2voc(self.FR)
+		self.voc_en = sentences2voc(self.EN)
+		self.null = null
+
+		self.name = name
+		self.desc = desc
+		self.out_dir = out_dir
+
+	def initialize(self):
+		"""Uniformly initializes the translation probabilities
+		Note that the translation probabilities are unnormalized
+		"""
+		t = Counter() 
+		for E, F in zip(self.EN, self.FR):
+			for f in F:
+				for e in E:
+					t[(f, e)] = 1.0
+		return t
+
+	def train(self, num_iter, t=None, logfreq=100):
+		"""Train the IBM1 model
+		Return:
+			t: the translation probabilities
+			likelihoods: the log-likelihood of the data after every iteration
+		"""
+		if t is None: 
+			t = self.initialize()
+		likelihoods = []
+		counts_ef = Counter()
+		counts_e  = Counter()
+
+		for ts in range(num_iter):
+			print("Start iteration %s" % ts)
+
+			t0 = time()
+			tprev = t0
+			counts_ef.clear()
+			counts_e.clear()
+
+			# E-step
+			for k, (E, F) in enumerate(zip(self.EN, self.FR)):
+				if (k % logfreq) == 0:
+					print "\t%sk sentences done (%s / %ss)" % (str(k/1000.0).zfill(5), round(time()-t0, 2), round(time()-tprev, 2))
+					tprev = time()
+
+				for f in F:
+					delta_sum = sum([t[(f, e)] for e in E])
+					for e in E:
+						# delta(k, j, j) = p(A_i = j | e, f, m )
+						delta = t[(f, e)] / delta_sum
+						counts_ef[(e, f)] += delta
+						counts_e[e] += delta
+				# print len(counts_ef), len(counts_e), len(t)
+
+			# M-step
+			print "\tE-step done, maximizing translation probabilities..."
+			for f, e in t.keys():
+				t[(f, e)] = counts_ef[(e, f)] / counts_e[e]
+				
+				if e == "NULL": 
+					# Multiple null words
+					t[(f, e)] *= self.null
+
+			print "\tE-M done. Calculating likelihoods..."
+			
+			# Log likelihood
+			likelihood = 0
+			for F, E in zip(self.FR, self.EN):
+				likelihood += self.log_likelihood(F, E, t)
+			likelihoods += [likelihood]
+
+			# Remove zero-entries
+			t += Counter()
+			
+			print "\tLog-likelhood: %s" % round(likelihood, 2)
+			print "Iteration %s done in %ss.\n" % (ts, round(time() - t0, 1))
+			
+		self.t = t
+		self.likelihoods = likelihoods
+
+		return t, likelihoods
 
 
-# This should be len(sentences_fr), but can be lowered in testing
-num_sentences = 100
+	def log_likelihood(self, F, E, t):
+		"""Log-likelihood of a pair of a French and English sentence"""
+		L = 0
+		for f in F:
+			L += np.log(sum([t[(f, e)] for e in E]))
 
-# This also only serves testing purposes: it makes sure we only use
-# the words that actually occur in the first num_sentences
-words_fr = set("".join(french.split("\n")[:num_sentences]).split(" "))
-words_en = set("".join(english.split("\n")[:num_sentences]).split(" "))
+		# For normalization, you could multiply (substract) by (1/ (l +1) )^m
+		return L #- len(F) * np.log(len(E))
 
-########
-## Initialize the translation probabilities t(f | e)
-# Should we initialise q s.t. we can use it to initialise q for model2?
-# Check if this is a proper probability distribution. I.e., should we normalize?
-t = Vividict()
-for k in range(num_sentences):
-	for i, f in enumerate(sentences_fr[k]):
-		for e in sentences_en[k]:
-			if t[f][e] == {}:
-				t[f][e] = np.random.rand(1)[0] #Should we pick a lower random nr, because the sum of p is way over 1
-
+	def posterior(i, f, E, t):
+		"""The probability of aligning f to E[i]
+		Or symbolically:
+		$p( a_j = i | f, e_i) = t(f | e_i) / \sum_{i=1}^l t(f | e_i)$
+		"""
+		numerator = t[(f, E[i])]
+		denominator = sum([ t[(f, e)] for e in E ])    
+		return numerator/denominator if numerator != 0.0 else 0.0
 
 
-########### 
-## E-M algorithm
-num_timesteps = 200         
-for ts in range(num_timesteps):
-        #print "Starting iteration %s" % ts
+	def decode(F, E, t=None):
+		"""Gets the Viterbi alignment for two aligned sentences
+		If alignment of some French word with the NULL-word is most 
+		probable, the French word remains unaligned.
 
-        # Rest counts
-        counts_ef = Vividict()
-        counts_e  = Vividict()
+		Returns:
+		A list of tuples $(f_i, e_{a_i}, p)$ indicating that
+		f_i is aligned to e_{a_i} with probability p
+		"""
+		if t == None: t = self.t
+		alignment = []
+		for i, f in enumerate(F):
+			alignment_probs = [posterior(j, f, E, t) for j in range(len(E))]
+			best = np.argmax(alignment_probs) 
+			if best != 0: 
+				alignment.append((i, best, max(alignment_probs)))
+		return alignment
 
-        for k in range(num_sentences): 
-                m = len(sentences_fr[k])
-                l = len(sentences_en[k])
-                for i, f in enumerate(sentences_fr[k]):
 
-                        # Outside the loop over english words since you only
-                        # need to calculate this once.
-                        delta_sum = sum([t[f][e] for e in sentences_en[k]])
+	def dump_t(self, filename, t=None):
+		if t == None: t = self.t
+		with open(filename, 'w') as outfile:
+			for (f, e), p in t.items():
+				outfile.write("%s %s %s\n" % (f, e, np.log(p)))
 
-                        for j, e in enumerate(sentences_en[k]):
+	def load_t(self, filename, update=True):
+		with open(filename, "r") as infile:
+			t_new = Counter()
+			for l in infile:
+				parts = l.replace("\n","").split(" ")
+				t_new[(parts[0], parts[1])] = np.exp(float(parts[2]))    
+			
+			if update: self.t = t_new
+			return t_new
 
-                                # Update all counts
-                                delta = t[f][e] / delta_sum  
-                                counts_ef[e][f] += delta
-                                counts_e[e] += delta
+	def save_model(self):
+		self.dump_t(self.out_dir + self.name+"transition-probs.txt")
+		with open(self.out_dir + "log-"+self.name+".txt", "w") as outfile:
+			outfile.write("\n\n****************************************\n")
+			outfile.write("* EXPERIMENT "+self.name+"\n*\n")
+			outfile.write("* "+self.desc+"\n****************************************\n*\n")
+			outfile.write("* Number of null words: " + str(self.null) + "\n")
+			outfile.write("* Transition probabilities stored in: " + self.name+"-transition-probs.txt\n*\n")
+			outfile.write("* Log likelihood during training:\n")
+			for i, l in enumerate(self.likelihoods):
+				outfile.write("*    %s)  %s\n" % (str(i).zfill(2), str(l)))
 
-        # Update the parameters t(f | e)
-        for f in words_fr:
-                for e in words_en:
-                        t[f][e] = (counts_ef[e][f] + 0.0) / (counts_e[e] + 0.0)
 
-#print t["et"]['and'] # converges to 1
-#print t["et"]['first'] # conversges to 0
-#print sum(t["et"][e] for e in words_en)# check whether probabilities eventually add up to 1!
+if __name__ ==  "__main__":
+	english = open('data/hansards.36.2.e').read()
+	french = open('data/hansards.36.2.f').read()
 
+	M = IBM1(english, french, 
+		start=0, limit=1000,
+		name="Test", desc="Dit is een test model.", 
+		out_dir="results/")
+	M.train(3, logfreq=500)
+	M.save_model()
+	
