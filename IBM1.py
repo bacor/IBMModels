@@ -34,33 +34,37 @@ class IBM1:
 
 		self.voc_fr = sentences2voc(self.FR)
 		self.voc_en = sentences2voc(self.EN)
-		self.num_null = num_null
+		print "Done splitting sentences"
 
+		self.num_null = num_null
 		self.name = name.replace(" ","-").lower()
 		self.desc = desc
 		self.out_dir = out_dir
 		self.start = start
 		self.limit = limit
 
-	def initialize(self):
+	def initialize(self, logfreq=500):
 		"""Uniformly initializes the translation probabilities
 		Note that the translation probabilities are unnormalized
 		"""
+		print "Initializing..."
 		t = Counter() 
-		for E, F in zip(self.EN, self.FR):
+		for k, (E, F) in enumerate(zip(self.EN, self.FR)):
+			if (k % logfreq) == 0:
+				print "\t%sk sentences initialized" % str(k/1000.0).zfill(5)
 			for f in F:
 				for e in E:
 					t[(f, e)] = 1.0
 		return t
 
-	def train(self, num_iter, t=None, logfreq=100):
+	def train(self, num_iter, t=None, logfreq=500):
 		"""Train the IBM1 model
 		Return:
 			t: the translation probabilities
 			likelihoods: the log-likelihood of the data after every iteration
 		"""
 		if t is None: 
-			t = self.initialize()
+			t = self.initialize(logfreq=logfreq)
 		likelihoods = []
 		counts_ef = Counter()
 		counts_e  = Counter()
@@ -186,10 +190,10 @@ if __name__ ==  "__main__":
 	english = open('data/hansards.36.2.e').read()
 	french = open('data/hansards.36.2.f').read()
 
-	M = IBM1(english, french, 
-		start=0, limit=1000,
+	M = IBM1(english, french,
+		start=0, limit=100,
 		name="Test", desc="Dit is een test model.", 
 		out_dir="results/")
-	M.train(3, logfreq=500)
+	M.train(3, logfreq=1000)
 	M.save_model()
 	
