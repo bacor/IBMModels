@@ -26,7 +26,8 @@ class IBM1:
 		out_dir: (optional) write all files in this directory
 	"""
 
-	def __init__(self, english, french, num_null = 1.0, 
+	def __init__(self, english, french, 
+		num_null = 1.0, add_n = 0.0, add_n_voc_size = 60000,
 		name="", desc="", start=0, limit=-1, out_dir=""):
 		self.FR = text2sentences(french)[start:limit]
 		self.EN = text2sentences(english)[start:limit]
@@ -37,6 +38,9 @@ class IBM1:
 		print "Done splitting sentences"
 
 		self.num_null = num_null
+		self.add_n = add_n
+		self.add_n_voc_size = add_n_voc_size
+
 		self.name = name.replace(" ","-").lower()
 		self.desc = desc
 		self.out_dir = out_dir
@@ -94,10 +98,12 @@ class IBM1:
 			# M-step
 			print "\tE-step done, maximizing translation probabilities..."
 			for f, e in t.keys():
-				t[(f, e)] = counts_ef[(e, f)] / counts_e[e]
+
+				# New transition probabilities with add-n smooting
+				t[(f, e)] = (counts_ef[(e, f)] + self.add_n) / (counts_e[e] + self.add_n * self.add_n_voc_size)
 				
+				# And: multiply the null-words
 				if e == "NULL": 
-					# Multiple null words
 					t[(f, e)] *= self.num_null
 
 			print "\tE-M done. Calculating likelihoods..."
@@ -191,7 +197,7 @@ if __name__ ==  "__main__":
 	french = open('data/hansards.36.2.f').read()
 
 	M = IBM1(english, french,
-		start=0, limit=100,
+		start=0, limit=100, add_n = .00001,
 		name="Test", desc="Dit is een test model.", 
 		out_dir="results/")
 	M.train(3, logfreq=1000)
