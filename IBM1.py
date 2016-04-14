@@ -25,14 +25,14 @@ words_en = set("".join(english.split("\n")[:num_sentences]).split(" "))
 
 ########
 ## Initialize the translation probabilities t(f | e)
-#
+# Should we initialise q s.t. we can use it to initialise q for model2?
 # Check if this is a proper probability distribution. I.e., should we normalize?
 t = Vividict()
 for k in range(num_sentences):
 	for i, f in enumerate(sentences_fr[k]):
 		for e in sentences_en[k]:
 			if t[f][e] == {}:
-				t[f][e] = np.random.rand(1)[0]
+				t[f][e] = np.random.rand(1)[0] #Should we pick a lower random nr, because the sum of p is way over 1
 
 
 

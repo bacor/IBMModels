@@ -15,12 +15,15 @@ num_sentences = 3
 #
 # Check if this is a proper probability distribution. I.e., should we normalize?
 t = Vividict()
+q = Vividict()
 par_init = 'uniform'
 
 for k in range(num_sentences):
     for i, f in enumerate(sentences_fr[k]):
-        for e in sentences_en[k]:
+        for j,e in enumerate(sentences_en[k]):
             t[f][e]
+            q[j][(i,len(sentences_en[k]),len(sentences_fr[k]))] = np.random.rand(1)[0]
+            
 
 for f in t:
     for e in t[f]:
@@ -32,16 +35,19 @@ for f in t:
             t[f][e] = 1 / float(len(t[f]))
                                    
 print t
+print q
 
 ########### 
 ## E-M algorithm
-num_timesteps = 1000        
+num_timesteps = 25        
 for ts in range(num_timesteps):
         #print "Starting iteration %s" % ts
 
         # Rest counts
         counts_ef = Vividict()
         counts_e  = Vividict()
+        counts_jilm = Vividict()
+        counts_ilm = Vividict()
 
         for k in range(num_sentences): 
                 m = len(sentences_fr[k])
@@ -50,7 +56,7 @@ for ts in range(num_timesteps):
 
                         # Outside the loop over english words since you only
                         # need to calculate this once.
-                        delta_sum = sum([t[f][e] for e in sentences_en[k]])
+                        delta_sum = sum(t[f][e] * q[j][(i,l,m)] for j,e in enumerate(sentences_en[k])) # fixen
 
                         for j, e in enumerate(sentences_en[k]):
 
@@ -58,11 +64,16 @@ for ts in range(num_timesteps):
                                 delta = t[f][e] / delta_sum  
                                 counts_ef[e][f] += delta
                                 counts_e[e] += delta
+                                counts_jilm += delta
+                                counts_ilm += delta
 
         # Update the parameters t(f | e)
         for f in words_fr:
                 for e in words_en:
                         t[f][e] = (counts_ef[e][f] + 0.0) / (counts_e[e] + 0.0)
+
+        #update the parameters q([j|i,l,m])
+        
 
 print t
 #print sum(t['buch'][e] for e in words_en)
