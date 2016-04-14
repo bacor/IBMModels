@@ -4,6 +4,7 @@ from helpers import *
 from time import time
 import cProfile
 from copy import copy
+from datetime import datetime
 
 class IBM1:
 	"""Implementation of the IBM 1 model
@@ -33,11 +34,13 @@ class IBM1:
 
 		self.voc_fr = sentences2voc(self.FR)
 		self.voc_en = sentences2voc(self.EN)
-		self.null = num_null
+		self.num_null = num_null
 
-		self.name = name
+		self.name = name.replace(" ","-").lower()
 		self.desc = desc
 		self.out_dir = out_dir
+		self.start = start
+		self.limit = limit
 
 	def initialize(self):
 		"""Uniformly initializes the translation probabilities
@@ -83,7 +86,6 @@ class IBM1:
 						delta = t[(f, e)] / delta_sum
 						counts_ef[(e, f)] += delta
 						counts_e[e] += delta
-				# print len(counts_ef), len(counts_e), len(t)
 
 			# M-step
 			print "\tE-step done, maximizing translation probabilities..."
@@ -102,9 +104,6 @@ class IBM1:
 				likelihood += self.log_likelihood(F, E, t)
 			likelihoods += [likelihood]
 
-			# Remove zero-entries
-			t += Counter()
-			
 			print "\tLog-likelhood: %s" % round(likelihood, 2)
 			print "Iteration %s done in %ss.\n" % (ts, round(time() - t0, 1))
 			
@@ -169,12 +168,14 @@ class IBM1:
 			return t_new
 
 	def save_model(self):
-		self.dump_t(self.out_dir + self.name+"transition-probs.txt")
-		with open(self.out_dir + "log-"+self.name+".txt", "w") as outfile:
+		self.dump_t(self.out_dir + self.name+"-transition-probs.txt")
+		with open(self.out_dir + self.name+"-log.txt", "w") as outfile:
 			outfile.write("\n\n****************************************\n")
 			outfile.write("* EXPERIMENT "+self.name+"\n*\n")
 			outfile.write("* "+self.desc+"\n****************************************\n*\n")
+			outfile.write("* Stored: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n*\n")
 			outfile.write("* Number of null words: " + str(self.num_null) + "\n")
+			outfile.write("* Trained on %s sentences (from %s to %s)\n" % (len(self.FR), self.start, self.limit))
 			outfile.write("* Transition probabilities stored in: " + self.name+"-transition-probs.txt\n*\n")
 			outfile.write("* Log likelihood during training:\n")
 			for i, l in enumerate(self.likelihoods):
