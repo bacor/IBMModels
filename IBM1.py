@@ -40,7 +40,7 @@ for k in range(num_sentences):
 ## E-M algorithm
 num_timesteps = 200         
 for ts in range(num_timesteps):
-        #print "Starting iteration %s" % ts
+        #print "Starting iteration %s" % ts5
 
         # Rest counts
         counts_ef = Vividict()
