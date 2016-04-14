@@ -13,9 +13,19 @@ class IBM1:
 	named by a single capital: `E` for an English sentence and 
 	and `F` for a french. Words in a sentence are then the corresonding
 	lowercase characters `e` and `f`.
+
+	Arguments:
+		english: the plain text with English sentences
+		french: the plain French sentences
+		null: (optional) How many null words to use (Extension from Moore, 2004)
+		start: (optional) only use sentences from `start` onwards
+		limit: (optional) only use sentences up to `limit`
+		name: (optional) A name for the model
+		desc: (optional) a description
+		out_dir: (optional) write all files in this directory
 	"""
 
-	def __init__(self, english, french, null = 1.0, 
+	def __init__(self, english, french, num_null = 1.0, 
 		name="", desc="", start=0, limit=-1, out_dir=""):
 		self.FR = text2sentences(french)[start:limit]
 		self.EN = text2sentences(english)[start:limit]
@@ -23,7 +33,7 @@ class IBM1:
 
 		self.voc_fr = sentences2voc(self.FR)
 		self.voc_en = sentences2voc(self.EN)
-		self.null = null
+		self.null = num_null
 
 		self.name = name
 		self.desc = desc
@@ -82,7 +92,7 @@ class IBM1:
 				
 				if e == "NULL": 
 					# Multiple null words
-					t[(f, e)] *= self.null
+					t[(f, e)] *= self.num_null
 
 			print "\tE-M done. Calculating likelihoods..."
 			
@@ -164,7 +174,7 @@ class IBM1:
 			outfile.write("\n\n****************************************\n")
 			outfile.write("* EXPERIMENT "+self.name+"\n*\n")
 			outfile.write("* "+self.desc+"\n****************************************\n*\n")
-			outfile.write("* Number of null words: " + str(self.null) + "\n")
+			outfile.write("* Number of null words: " + str(self.num_null) + "\n")
 			outfile.write("* Transition probabilities stored in: " + self.name+"-transition-probs.txt\n*\n")
 			outfile.write("* Log likelihood during training:\n")
 			for i, l in enumerate(self.likelihoods):
