@@ -31,14 +31,15 @@ class IBM1:
 
 	def __init__(self, english, french, 
 		num_null = 1.0, add_n = 0.0, add_n_voc_size = 60000,
-		name="", desc="", start=0, limit=-1, out_dir="", dump_trans_probs=False):
+		name="", desc="", start=0, limit=-1, 
+		out_dir="", dump_trans_probs=False, log=True):
 		self.FR = text2sentences(french)[start:limit]
 		self.EN = text2sentences(english)[start:limit]
 		self.EN = map(add_null, self.EN)
 
 		self.voc_fr = sentences2voc(self.FR)
 		self.voc_en = sentences2voc(self.EN)
-		print "Done splitting sentences"
+		if log: print "Done splitting sentences"
 
 		self.num_null = num_null
 		self.add_n = add_n
@@ -50,35 +51,38 @@ class IBM1:
 		self.start = start
 		self.limit = limit
 		self.dump_trans_probs = dump_trans_probs
+		self.log = log
 
-	def initialize(self, logfreq=500):
+	def initialize(self, logfreq=500, log=None):
 		"""Uniformly initializes the translation probabilities
 		Note that the translation probabilities are unnormalized
 		"""
-		print "Initializing..."
+		if log == None: log = self.log
+		if log: print "Initializing..."
 		t = Counter() 
 		for k, (E, F) in enumerate(zip(self.EN, self.FR)):
-			if (k % logfreq) == 0:
+			if (k % logfreq) == 0 and log:
 				print "\t%sk sentences initialized" % str(k/1000.0).zfill(5)
 			for f in F:
 				for e in E:
 					t[(f, e)] = 1.0
 		return t
 
-	def train(self, num_iter, t=None, logfreq=500):
+	def train(self, num_iter, t=None, logfreq=500, log=None):
 		"""Train the IBM1 model
 		Return:
 			t: the translation probabilities
 			likelihoods: the log-likelihood of the data after every iteration
 		"""
+		if log == None: log = self.log
 		if t is None: 
-			t = self.initialize(logfreq=logfreq)
+			t = self.initialize(logfreq=logfreq, log=log)
 		likelihoods = []
 		counts_ef = Counter()
 		counts_e  = Counter()
 
 		for ts in range(num_iter):
-			print("Start iteration %s" % ts)
+			if log: print("Start iteration %s" % ts)
 
 			t0 = time()
 			tprev = t0
@@ -87,7 +91,7 @@ class IBM1:
 
 			# E-step
 			for k, (E, F) in enumerate(zip(self.EN, self.FR)):
-				if (k % logfreq) == 0:
+				if (k % logfreq) == 0 and log:
 					print "\t%sk sentences done (%s / %ss)" % (str(k/1000.0).zfill(5), round(time()-t0, 2), round(time()-tprev, 2))
 					tprev = time()
 
@@ -100,7 +104,7 @@ class IBM1:
 						counts_e[e] += delta
 
 			# M-step
-			print "\tE-step done, maximizing translation probabilities..."
+			if log: print "\tE-step done, maximizing translation probabilities..."
 			for f, e in t.keys():
 
 				# New transition probabilities with add-n smooting
@@ -110,7 +114,7 @@ class IBM1:
 				if e == "NULL": 
 					t[(f, e)] *= self.num_null
 
-			print "\tE-M done. Calculating likelihoods..."
+			if log: print "\tE-M done. Calculating likelihoods..."
 			
 			# Log likelihood
 			likelihood = 0
@@ -118,8 +122,8 @@ class IBM1:
 				likelihood += self.log_likelihood(F, E, t)
 			likelihoods += [likelihood]
 
-			print "\tLog-likelhood: %s" % round(likelihood, 2)
-			print "Iteration %s done in %ss.\n" % (ts, round(time() - t0, 1))
+			if log: print "\tLog-likelhood: %s" % round(likelihood, 2)
+			if log: print "Iteration %s done in %ss.\n" % (ts, round(time() - t0, 1))
 			
 			if self.dump_trans_probs:
 				self.dump_t(self.out_dir + self.name+"-trans-probs-iter-"+str(ts)+".txt", t)
@@ -207,7 +211,7 @@ if __name__ ==  "__main__":
 	M = IBM1(english, french,
 		start=0, limit=100, add_n = .00001,
 		name="Test", desc="Dit is een test model.", 
-		out_dir="results/")
+		out_dir="results/", log=True)
 	M.train(3, logfreq=1000)
-	M.save_model()
+	# M.save_model()
 	
