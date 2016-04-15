@@ -18,12 +18,15 @@ class IBM1:
 	Arguments:
 		english: the plain text with English sentences
 		french: the plain French sentences
-		null: (optional) How many null words to use (Extension from Moore, 2004)
+		num_null: (optional) How many null words to use (Extension from Moore, 2004)
+		add_n: (optional) the add-n smooting parameter
+		add_n_voc_size: (optinal) estimate of vocabulary size in add-n smoothing
 		start: (optional) only use sentences from `start` onwards
 		limit: (optional) only use sentences up to `limit`
 		name: (optional) A name for the model
 		desc: (optional) a description
 		out_dir: (optional) write all files in this directory
+		dump_trans_probs: (optional) store transition probabilities to file after every iteration
 	"""
 
 	def __init__(self, english, french, 
@@ -139,7 +142,7 @@ class IBM1:
 	def posterior(i, f, E, t):
 		"""The probability of aligning f to E[i]
 		Or symbolically:
-		$p( a_j = i | f, e_i) = t(f | e_i) / \sum_{i=1}^l t(f | e_i)$
+		$p( a_i = j | f, e_j) = t(f | e_j) / \sum_{j=1}^l t(f | e_j)$
 		"""
 		numerator = t[(f, E[i])]
 		denominator = sum([ t[(f, e)] for e in E ])    
