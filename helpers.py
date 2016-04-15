@@ -1,3 +1,21 @@
+
+def text2sentences(text):
+	"""Splits a long string into sentences, which are lists of words"""
+	sentences = []
+	for line in text.split("\n"):
+		word_list = [word for word in line.split(" ") if word != ""]
+		sentences.append(word_list)
+	return sentences
+
+def sentences2voc(sentences):
+	"""Extracts the vocabulary from a set of sentences (lists of words)"""
+	return set([word for s in sentences for word in s])
+
+def add_null(sentence):
+	"""Adds a nullword to a sentence (list of words)"""
+	return ["NULL"] + sentence
+    
+# NOT NEEDED ANYMORE; USE COUNTER INSTEAD
 class Vividict(dict):
 	"""Extension of normal dictionary class with hierarchical indexing
 

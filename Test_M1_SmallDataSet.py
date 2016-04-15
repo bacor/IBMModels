@@ -21,7 +21,11 @@ for k in range(num_sentences):
 			if t[f][e] == {}: # why a conditional?
 				t[f][e] = np.random.rand(1)[0]
 
+<<<<<<< HEAD
 print t
+=======
+
+>>>>>>> master
 ########### 
 ## E-M algorithm
 num_timesteps = 1000        
