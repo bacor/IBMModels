@@ -5,7 +5,7 @@ from time import time
 import cProfile
 from copy import copy
 from datetime import datetime
-
+from IBM1 import *
 import timeit
 
 class IBM2:
@@ -53,14 +53,16 @@ class IBM2:
 		self.limit = limit
 		self.dump_trans_probs = dump_trans_probs
 
-	def initialize(self, method="uniform", logfreq=500):
+	def initialize(self, method="uniform", update=False, logfreq=500):
 		"""Uniformly initializes the translation probabilities
 		Note that the translation probabilities are unnormalized
 
 		Args:
-			method: either "uniform", "random" or the transition probabilities
-					(a Counter object) from IBM1. 
-			logfeq: Frequency of logging
+			method: (optional) either "uniform", "random" or the transition probabilities
+					(a Counter object) from IBM1. Default: "uniform"
+			update: (optional) Update the model's trans. and alignment probabilities with
+					the new initialization?
+			logfeq: (optional) Frequency of logging
 
 		Returns:
 			t: the transition probabilities
@@ -91,6 +93,11 @@ class IBM2:
 					elif method == "ibm1":
 						t[(f, e)] = t_ibm1[(f,e)]
 						q[(j, i, len(E), len(F))] = 1.0 # Uniform
+		
+		if update:
+			self.t = t
+			self.q = q
+
 		return t, q
 
 	def train(self, num_iter, t=None, logfreq=500):
@@ -234,13 +241,19 @@ if __name__ ==  "__main__":
 	english = open('data/sample.e').read()
 	french = open('data/sample.f').read()
 
+	M1 = IBM1(english, french,
+		start=0, limit=5000, add_n=0,
+		name="Test", desc="Dit is een test model.", 
+		out_dir="results/")
+	t1, l = M1. train(2)
+	
 	M = IBM2(english, french,
 		start=0, limit=5000, add_n=0,
 		name="Test", desc="Dit is een test model.", 
 		out_dir="results/")
 
-	M.initialize(method="random")
-
+	M.initialize(method=t1, update=True)
+	print M1.t[('et', 'and')], M1.t[('et', 'and')]
 	# M.train(3, logfreq=1000)
 	# M.save_model()
 	
