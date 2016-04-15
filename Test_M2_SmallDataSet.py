@@ -34,12 +34,12 @@ for f in t:
         elif par_init == 'model1':
             t[f][e] = 1 / float(len(t[f]))
                                    
-print t
-print q
+#print t
+#print q
 
 ########### 
 ## E-M algorithm
-num_timesteps = 25        
+num_timesteps = 25       
 for ts in range(num_timesteps):
         #print "Starting iteration %s" % ts
 
@@ -56,7 +56,7 @@ for ts in range(num_timesteps):
 
                         # Outside the loop over english words since you only
                         # need to calculate this once.
-                        delta_sum = sum(t[f][e] * q[j][(i,l,m)] for j,e in enumerate(sentences_en[k])) # fixen
+                        delta_sum = sum(t[f][e] * q[j][(i,l,m)] for j,e in enumerate(sentences_en[k]))
 
                         for j, e in enumerate(sentences_en[k]):
 
@@ -64,19 +64,27 @@ for ts in range(num_timesteps):
                                 delta = t[f][e] / delta_sum  
                                 counts_ef[e][f] += delta
                                 counts_e[e] += delta
-                                counts_jilm += delta
-                                counts_ilm += delta
+                                counts_jilm[j][(i,l,m)] += delta
+                                counts_ilm[(i,l,m)] += delta
 
         # Update the parameters t(f | e)
         for f in words_fr:
                 for e in words_en:
                         t[f][e] = (counts_ef[e][f] + 0.0) / (counts_e[e] + 0.0)
-
-        #update the parameters q([j|i,l,m])
+        print q[0][(0, 2, 2)]
+        print q[0][(1,2,2)]
         
+        #update the parameters q([j|i,l,m])
+        for j in range(max(len(f) for f in sentences_fr)):
+            for i in range(max(len(e) for e in sentences_en)):
+                for l in range(1, max(len(e) for e in sentences_en) + 1):
+                    for m in range(1, max(len(f) for f in sentences_fr) + 1):
+                        #print (j,i,l,m)
+                        if counts_ilm[(i,l,m)] != {}:
+                            q[j][(i,l,m)] = (counts_jilm[j][(i,l,m)] + 0.0) / (counts_ilm[(i,l,m)] + 0.0)
 
-print t
-#print sum(t['buch'][e] for e in words_en)
+#print t
+# print sum(t[f]['book'] for f in words_fr)
 
 # {'buch': {'a': 0.00050143856526195963, 'house': 0.0, 'the': 5.6385343860565903e-301, 'book': 1.0}, 'ein': {'a': 0.99949856143473792, 'house': 0.0, 'the': 0.0, 'book': 7.1844716990123485e-300}, 'haus': {'a': 0.0, 'house': 0.99949797091102255, 'the': 2.0853225798067474e-299, 'book': 0.0}, 'das': {'a': 0.0, 'house': 0.00050202908897742414, 'the': 1.0, 'book': 6.3887476442035224e-301}}
 # 1.00050143857
