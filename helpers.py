@@ -9,7 +9,7 @@ def text2sentences(text):
 
 def sentences2voc(sentences):
 	"""Extracts the vocabulary from a set of sentences (lists of words)"""
-	return set([word for s in sentences for word in s])
+	return list(set([word for s in sentences for word in s]))
 
 def add_null(sentence):
 	"""Adds a nullword to a sentence (list of words)"""
