@@ -28,7 +28,7 @@ class IBM1:
 
 	def __init__(self, english, french, 
 		num_null = 1.0, add_n = 0.0, add_n_voc_size = 60000,
-		name="", desc="", start=0, limit=-1, out_dir=""):
+		name="", desc="", start=0, limit=-1, out_dir="", dump_trans_probs=False):
 		self.FR = text2sentences(french)[start:limit]
 		self.EN = text2sentences(english)[start:limit]
 		self.EN = map(add_null, self.EN)
@@ -46,6 +46,7 @@ class IBM1:
 		self.out_dir = out_dir
 		self.start = start
 		self.limit = limit
+		self.dump_trans_probs = dump_trans_probs
 
 	def initialize(self, logfreq=500):
 		"""Uniformly initializes the translation probabilities
@@ -117,6 +118,9 @@ class IBM1:
 			print "\tLog-likelhood: %s" % round(likelihood, 2)
 			print "Iteration %s done in %ss.\n" % (ts, round(time() - t0, 1))
 			
+			if self.dump_trans_probs:
+				self.dump_t(self.out_dir + self.name+"-trans-probs-iter-"+str(ts)+".txt", t)
+		
 		self.t = t
 		self.likelihoods = likelihoods
 
@@ -186,7 +190,8 @@ class IBM1:
 			outfile.write("* Stored: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n*\n")
 			outfile.write("* Number of null words: " + str(self.num_null) + "\n")
 			outfile.write("* Trained on %s sentences (from %s to %s)\n" % (len(self.FR), self.start, self.limit))
-			outfile.write("* Transition probabilities stored in: " + self.name+"-transition-probs.txt\n*\n")
+			outfile.write("* In %s iterations \n" % len(self.likelihoods))
+			# outfile.write("* Transition probabilities stored in: " + self.name+"-transition-probs.txt\n*\n")
 			outfile.write("* Log likelihood during training:\n")
 			for i, l in enumerate(self.likelihoods):
 				outfile.write("*    %s)  %s\n" % (str(i).zfill(2), str(l)))
