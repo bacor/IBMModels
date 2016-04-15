@@ -206,13 +206,15 @@ class IBM1:
 			return t_new
 
 	def save_model(self):
-		self.dump_t(self.out_dir + self.name+"-transition-probs.txt")
+		self.dump_t(self.out_dir + self.name+"-trans-probs.txt")
 		with open(self.out_dir + self.name+"-log.txt", "w") as outfile:
 			outfile.write("\n\n****************************************\n")
 			outfile.write("* EXPERIMENT "+self.name+"\n*\n")
 			outfile.write("* "+self.desc+"\n****************************************\n*\n")
 			outfile.write("* Stored: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n*\n")
 			outfile.write("* Number of null words: " + str(self.num_null) + "\n")
+			outfile.write("* Add-n: " + str(self.add_n) + "\n")
+			outfile.write("* Add-n vocabulary size: " + str(self.add_n_voc_size) + "\n")
 			outfile.write("* Trained on %s sentences (from %s to %s)\n" % (len(self.FR), self.start, self.limit))
 			outfile.write("* In %s iterations \n" % len(self.likelihoods))
 			# outfile.write("* Transition probabilities stored in: " + self.name+"-transition-probs.txt\n*\n")
