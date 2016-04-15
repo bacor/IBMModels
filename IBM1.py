@@ -53,7 +53,7 @@ class IBM1:
 		self.dump_trans_probs = dump_trans_probs
 		self.log = log
 
-	def initialize(self, logfreq=500, log=None):
+	def initialize(self, logfreq=500, log=None, update=True):
 		"""Uniformly initializes the translation probabilities
 		Note that the translation probabilities are unnormalized
 		"""
@@ -66,6 +66,9 @@ class IBM1:
 			for f in F:
 				for e in E:
 					t[(f, e)] = 1.0
+		if update:
+			self.t = t
+
 		return t
 
 	def train(self, num_iter, t=None, logfreq=500, log=None):
@@ -75,8 +78,7 @@ class IBM1:
 			likelihoods: the log-likelihood of the data after every iteration
 		"""
 		if log == None: log = self.log
-		if t is None: 
-			t = self.initialize(logfreq=logfreq, log=log)
+		if t is None: t = self.t
 		likelihoods = []
 		counts_ef = Counter()
 		counts_e  = Counter()
@@ -143,7 +145,7 @@ class IBM1:
 		# For normalization, you could multiply (substract) by (1/ (l +1) )^m
 		return L #- len(F) * np.log(len(E))
 
-	def posterior(i, f, E, t):
+	def posterior(self, i, f, E, t):
 		"""The probability of aligning f to E[i]
 		Or symbolically:
 		$p( a_i = j | f, e_j) = t(f | e_j) / \sum_{j=1}^l t(f | e_j)$
@@ -153,7 +155,7 @@ class IBM1:
 		return numerator/denominator if numerator != 0.0 else 0.0
 
 
-	def decode(F, E, t=None):
+	def decode(self, F, E, t=None):
 		"""Gets the Viterbi alignment for two aligned sentences
 		If alignment of some French word with the NULL-word is most 
 		probable, the French word remains unaligned.
@@ -165,11 +167,26 @@ class IBM1:
 		if t == None: t = self.t
 		alignment = []
 		for i, f in enumerate(F):
-			alignment_probs = [posterior(j, f, E, t) for j in range(len(E))]
+			alignment_probs = [self.posterior(j, f, E, t) for j in range(len(E))]
 			best = np.argmax(alignment_probs) 
 			if best != 0: 
 				alignment.append((i, best, max(alignment_probs)))
 		return alignment
+
+
+	def show_decoding(self, decoding, F, E):
+		decode_dict = Counter()
+		for i, j, p in decoding:
+			decode_dict[i] = j
+		
+		print "".ljust(80, '-')
+		print "French:  "+" ".join(F) + "\nEnglish: " + " ".join(E[1:])+"\n"
+
+		span = max(map(len, F)) + 6
+		for i, f in enumerate(F):
+			e = E[decode_dict[i]]
+			print "%s %s %s" % (i, f.ljust(span, '.'), e)
+		print "".ljust(80, '-') + "\n"
 
 
 	def dump_t(self, filename, t=None):
@@ -211,7 +228,13 @@ if __name__ ==  "__main__":
 	M = IBM1(english, french,
 		start=0, limit=100, add_n = .00001,
 		name="Test", desc="Dit is een test model.", 
-		out_dir="results/", log=True)
-	M.train(3, logfreq=1000)
+		out_dir="results/", 
+		log=True)
+	# M.load_t("results/test-transition-probs.txt")
+	M.initialize()
+	M.train(5)
 	# M.save_model()
 	
+	for k in range(7,20):
+		decoding =  M.decode(M.FR[k], M.EN[k])
+		M.show_decoding(decoding, M.FR[k], M.EN[k])
