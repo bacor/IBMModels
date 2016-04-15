@@ -33,14 +33,14 @@ class IBM2:
 
 	def __init__(self, english, french, 
 		num_null = 1.0, add_n = 0.0, add_n_voc_size = 60000,
-		name="", desc="", start=0, limit=-1, out_dir="", dump_trans_probs=False):
+		name="", desc="", start=0, limit=-1, out_dir="", dump_trans_probs=False, log=True):
 		self.FR = text2sentences(french)[start:limit]
 		self.EN = text2sentences(english)[start:limit]
 		self.EN = map(add_null, self.EN)
 
 		self.voc_fr = sentences2voc(self.FR)
 		self.voc_en = sentences2voc(self.EN)
-		print "Done splitting sentences"
+		if log: print "Done splitting sentences"
 
 		self.num_null = num_null
 		self.add_n = add_n
@@ -52,8 +52,9 @@ class IBM2:
 		self.start = start
 		self.limit = limit
 		self.dump_trans_probs = dump_trans_probs
+		self.log = log
 
-	def initialize(self, method="uniform", update=False, logfreq=500):
+	def initialize(self, method="uniform", update=True, logfreq=500, log=None):
 		"""Uniformly initializes the translation probabilities
 		Note that the translation probabilities are unnormalized
 
@@ -68,16 +69,20 @@ class IBM2:
 			t: the transition probabilities
 			q: the alignment probabilities
 		"""
-		print "Initializing..."
+		if log == None: log = self.log
+		if log: print "Initializing..."
 		t = Counter() 
 		q = Counter()
 
-		if type(method) is not str:
-			t_ibm1 = method
-			method = "ibm1"
+		if method != "uniform" and method != "random":
+			if type(method) is str:
+				t = self.load_t(method, update=False)
+			else: 
+				t = method
+				
 
 		for k, (E, F) in enumerate(zip(self.EN, self.FR)):
-			if (k % logfreq) == 0:
+			if (k % logfreq) == 0 and log:
 				print "\t%sk sentences initialized" % str(k/1000.0).zfill(5)
 
 			for i, f in enumerate(F):
@@ -91,7 +96,7 @@ class IBM2:
 						q[(j, i, len(E), len(F))] = np.random.rand(1)[0]
 
 					elif method == "ibm1":
-						t[(f, e)] = t_ibm1[(f,e)]
+						# t has already been set
 						q[(j, i, len(E), len(F))] = 1.0 # Uniform
 		
 		if update:
@@ -100,44 +105,60 @@ class IBM2:
 
 		return t, q
 
-	def train(self, num_iter, t=None, logfreq=500):
+	def train(self, num_iter, t=None, q=None, logfreq=500, log=None):
 		"""Train the IBM1 model
+		Args:
+			t: (optional) the translation probabilities. Default: use own t
+			q: (optional) alignment probabilities. Default: use own q
+			
 		Return:
 			t: the translation probabilities
+			q: alignment probabilities
 			likelihoods: the log-likelihood of the data after every iteration
 		"""
-		if t is None: 
-			t = self.initialize(logfreq=logfreq)
+		if log is None: log = self.log
+		if t is None: t = self.t
+		if q is None: q = self.q
+
 		likelihoods = []
 		counts_ef = Counter()
 		counts_e  = Counter()
+		counts_jilm = Counter()
+		counts_ilm = Counter()
+
+		max_sentence_len_fr = max(map(len, self.FR))
+		max_sentence_len_en = max(map(len, self.EN))
 
 		for ts in range(num_iter):
-			print("Start iteration %s" % ts)
+			if log: print("Start iteration %s" % ts)
 
 			t0 = time()
 			tprev = t0
 			counts_ef.clear()
 			counts_e.clear()
+			counts_jilm.clear()
+			counts_ilm.clear()
 
 			# E-step
 			for k, (E, F) in enumerate(zip(self.EN, self.FR)):
-				if (k % logfreq) == 0:
+				l, m = len(E), len(F)
+
+				if (k % logfreq) == 0 and log:
 					print "\t%sk sentences done (%s / %ss)" % (str(k/1000.0).zfill(5), round(time()-t0, 2), round(time()-tprev, 2))
 					tprev = time()
 
-				for f in F:
-					delta_sum = sum([t[(f, e)] for e in E])
-					for e in E:
-						# delta(k, j, j) = p(A_i = j | e, f, m )
-						delta = t[(f, e)] / delta_sum
+				for i, f in enumerate(F):
+					delta_sum = sum([t[(f, e)] * q[(j, i, l, m)] for j, e in enumerate(E)])
+					for j, e in enumerate(E):
+						delta = t[(f, e)] * q[(j, i, l, m)] / delta_sum
 						counts_ef[(e, f)] += delta
 						counts_e[e] += delta
+						counts_jilm[(j, i, l, m)] += delta
+						counts_ilm[(i, l, m)] += delta
 
 			# M-step
-			print "\tE-step done, maximizing translation probabilities..."
+			if log: print "\tE-step done, maximizing translation probabilities..."
 			for f, e in t.keys():
-
 				# New transition probabilities with add-n smooting
 				t[(f, e)] = (counts_ef[(e, f)] + self.add_n) / (counts_e[e] + self.add_n * self.add_n_voc_size)
 				
@@ -145,46 +166,54 @@ class IBM2:
 				if e == "NULL": 
 					t[(f, e)] *= self.num_null
 
-			print "\tE-M done. Calculating likelihoods..."
-			
-			# Log likelihood
+			if log: print "\tMaximizing alignment probabilities..."
+			for j, i, l, m in q.keys():
+				q[(j, i, l, m)] = counts_jilm[(j, i, l, m)] / counts_ilm[(i, l, m)]
+
+			if log: print "\tE-M done. Calculating likelihoods..."
 			likelihood = 0
 			for F, E in zip(self.FR, self.EN):
-				likelihood += self.log_likelihood(F, E, t)
+				likelihood += self.log_likelihood(F, E, t, q)
 			likelihoods += [likelihood]
-
-			print "\tLog-likelhood: %s" % round(likelihood, 2)
-			print "Iteration %s done in %ss.\n" % (ts, round(time() - t0, 1))
 			
+			if log: print "\tLog-likelhood: %s" % round(likelihood, 2)
+			if log: print "Iteration %s done in %ss.\n" % (ts, round(time() - t0, 1))
 			if self.dump_trans_probs:
 				self.dump_t(self.out_dir + self.name+"-trans-probs-iter-"+str(ts)+".txt", t)
 		
 		self.t = t
+		self.q = q
 		self.likelihoods = likelihoods
 
-		return t, likelihoods
+		return t, q, likelihoods
 
-
-	def log_likelihood(self, F, E, t):
+	def log_likelihood(self, F, E, t, q):
 		"""Log-likelihood of a pair of a French and English sentence"""
 		L = 0
-		for f in F:
-			L += np.log(sum([t[(f, e)] for e in E]))
+		for i, f in enumerate(F):
+			L += np.log(sum([t[(f, e)] * q[(j, i, len(E), len(F))] for j, e in enumerate(E)]))
 
 		# For normalization, you could multiply (substract) by (1/ (l +1) )^m
 		return L #- len(F) * np.log(len(E))
 
-	def posterior(i, f, E, t):
+	def posterior(self, j, i, F, E, t=None, q=None):
 		"""The probability of aligning f to E[i]
 		Or symbolically:
 		$p( a_i = j | f, e_j) = t(f | e_j) / \sum_{j=1}^l t(f | e_j)$
 		"""
-		numerator = t[(f, E[i])]
-		denominator = sum([ t[(f, e)] for e in E ])    
-		return numerator/denominator if numerator != 0.0 else 0.0
+		if t == None: t = self.t
+		if q == None: q = self.q
+		f = F[i]
+		numerator = t[(f, E[j])] * q[(j, i, len(E), len(F))]
+		denominator = sum([ t[(f, e)] * q[(j, i, len(E), len(F))] for j, e in enumerate(E) ])
+		if denominator > 0 :
+			return numerator / denominator
+		else:
+			return 0
+		# return 1
+		# return numerator/denominator if numerator != 0.0 else 0.0
 
-
-	def decode(F, E, t=None):
+	def decode(self, F, E, t=None, q=None):
 		"""Gets the Viterbi alignment for two aligned sentences
 		If alignment of some French word with the NULL-word is most 
 		probable, the French word remains unaligned.
@@ -194,14 +223,28 @@ class IBM2:
 		f_i is aligned to e_{a_i} with probability p
 		"""
 		if t == None: t = self.t
+		if q == None: q = self.q
 		alignment = []
 		for i, f in enumerate(F):
-			alignment_probs = [posterior(j, f, E, t) for j in range(len(E))]
+			alignment_probs = [self.posterior(j, i, F, E, t, q) for j in range(len(E))]
 			best = np.argmax(alignment_probs) 
 			if best != 0: 
 				alignment.append((i, best, max(alignment_probs)))
 		return alignment
 
+	def show_decoding(self, decoding, F, E):
+		decode_dict = Counter()
+		for i, j, p in decoding:
+			decode_dict[i] = j
+		
+		print "".ljust(80, '-')
+		print "French:  "+" ".join(F) + "\nEnglish: " + " ".join(E[1:])+"\n"
+
+		span = max(map(len, F)) + 6
+		for i, f in enumerate(F):
+			e = E[decode_dict[i]]
+			print "%s %s %s" % (i, f.ljust(span, '.'), e)
+		print "".ljust(80, '-') + "\n"
 
 	def dump_t(self, filename, t=None):
 		if t == None: t = self.t
@@ -217,7 +260,9 @@ class IBM2:
 				t_new[(parts[0], parts[1])] = np.exp(float(parts[2]))    
 			
 			if update: self.t = t_new
+			print "Translation probabilities loaded."
 			return t_new
+
 
 	def save_model(self):
 		self.dump_t(self.out_dir + self.name+"-transition-probs.txt")
@@ -236,24 +281,32 @@ class IBM2:
 
 
 if __name__ ==  "__main__":
-	# english = open('data/hansards.36.2.e').read()
-	# french = open('data/hansards.36.2.f').read()
-	english = open('data/sample.e').read()
-	french = open('data/sample.f').read()
+	english = open('data/hansards.36.2.e').read()
+	french = open('data/hansards.36.2.f').read()
+	# english = open('data/sample.e').read()
+	# french = open('data/sample.f').read()
 
-	M1 = IBM1(english, french,
-		start=0, limit=5000, add_n=0,
-		name="Test", desc="Dit is een test model.", 
-		out_dir="results/")
-	t1, l = M1. train(2)
+	# M1 = IBM1(english, french,
+	# 	start=0, limit=5000, add_n=0,
+	# 	name="test-ibm1", desc="Dit is een test model.", 
+	# 	out_dir="results/", dump_trans_probs=False)
+	# M1.load_t("results/test-ibm1-transition-probs.txt")
+	# t1, l = M1.train(5)
+	# M1.save_model()
+
+
 	
 	M = IBM2(english, french,
 		start=0, limit=5000, add_n=0,
 		name="Test", desc="Dit is een test model.", 
-		out_dir="results/")
+		out_dir="results/", log=True)
+	M.initialize(method="random")
+	M.train(1)
+	# Uniform and random work fine. Loading IBM1 does not
 
-	M.initialize(method=t1, update=True)
-	print M1.t[('et', 'and')], M1.t[('et', 'and')]
-	# M.train(3, logfreq=1000)
-	# M.save_model()
-	
+	for k in range(7,20):
+		decoding =  M.decode(M.FR[k], M.EN[k])
+		M.show_decoding(decoding, M.FR[k], M.EN[k])
+
+
+
