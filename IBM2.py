@@ -355,7 +355,7 @@ if __name__ ==  "__main__":
 	
 	# Create class instance
 	M = IBM2(english, french,
-		start=0, limit=100, add_n=0, num_null=5
+		start=0, limit=100, add_n=0, num_null=5,
 		name="Test", desc="Dit is een test model.", 
 		out_dir="results/", log=True)
 
