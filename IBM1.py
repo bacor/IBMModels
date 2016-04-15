@@ -185,7 +185,7 @@ class IBM1:
 		span = max(map(len, F)) + 6
 		for i, f in enumerate(F):
 			e = E[decode_dict[i]]
-			print "%s %s %s" % (i, f.ljust(span, '.'), e)
+			print "%s %s %s" % (i, (f+" ").ljust(span, '.'), e)
 		print "".ljust(80, '-') + "\n"
 
 
