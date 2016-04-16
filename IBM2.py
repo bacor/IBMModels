@@ -28,13 +28,13 @@ class IBM2:
 		name: (optional) A name for the model
 		desc: (optional) a description
 		out_dir: (optional) write all files in this directory
-		dump_trans_probs: (optional) store transition probabilities to file after every iteration
+		dump_probs: (optional) store transition probabilities to file after every iteration
 		log: show some messages or suppress all?
 	"""
 
 	def __init__(self, english, french, 
 		num_null = 1.0, add_n = 0.0, add_n_voc_size = 60000,
-		name="", desc="", start=0, limit=-1, out_dir="", dump_trans_probs=False, log=True):
+		name="", desc="", start=0, limit=-1, out_dir="", dump_probs=False, log=True):
 		self.FR = text2sentences(french)[start:limit]
 		self.EN = text2sentences(english)[start:limit]
 		self.EN = map(add_null, self.EN)
@@ -52,7 +52,7 @@ class IBM2:
 		self.out_dir = out_dir
 		self.start = start
 		self.limit = limit
-		self.dump_trans_probs = dump_trans_probs
+		self.dump_probs = dump_probs
 		self.log = log
 
 	def initialize(self, method, update=True, logfreq=500, log=None):
@@ -192,8 +192,9 @@ class IBM2:
 			
 			if log: print "\tLog-likelhood: %s" % round(likelihood, 2)
 			if log: print "Iteration %s done in %ss.\n" % (ts, round(time() - t0, 1))
-			if self.dump_trans_probs:
+			if self.dump_probs:
 				self.dump_t(self.out_dir + self.name+"-trans-probs-iter-"+str(ts)+".txt", t)
+				self.dump_q(self.out_dir + self.name+"-alignment-probs-iter-"+str(ts)+".txt", q)
 		
 		self.t = t
 		self.q = q
