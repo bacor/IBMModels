@@ -23,10 +23,13 @@ model = IBM1(english, french,
 
 # Change this path
 trans_probs_file = "results/params/2-ibm1-default-trans-probs-iter-5.txt" 
+# For IBM 2:
+# alignment_probs_file = "results/params/2-ibm1-default-alignments-probs-iter-5.txt" 
 
 # Now load the transition probabilites, this takes a while...
 print 'Loading model...'
 model.load_t(trans_probs_file)
+# model.load_q(alignment_probs_file)
 print 'The model has been loaded!'
 
 # Now load some test data
