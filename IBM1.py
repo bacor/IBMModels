@@ -30,7 +30,7 @@ class IBM1:
 	"""
 
 	def __init__(self, english, french, 
-		num_null = 1.0, add_n = 0.0, add_n_voc_size = 60000,
+		num_null = 10.0, add_n = 0.0, add_n_voc_size = 500,
 		name="", desc="", start=0, limit=-1, out_dir="", dump_trans_probs=False):
 		self.FR = text2sentences(french)[start:limit]
 		self.EN = text2sentences(english)[start:limit]
@@ -38,7 +38,8 @@ class IBM1:
 
 		self.voc_fr = sentences2voc(self.FR)
 		self.voc_en = sentences2voc(self.EN)
-		print "Done splitting sentences"
+		print "voc size", len(self.voc_en)
+		print "Done splitting sentences" 
 
 		self.num_null = num_null
 		self.add_n = add_n
@@ -63,6 +64,7 @@ class IBM1:
 			for f in F:
 				for e in E:
 					t[(f, e)] = 1.0
+		
 		return t
 
 	def train(self, num_iter, t=None, logfreq=500):
@@ -99,10 +101,12 @@ class IBM1:
 						counts_ef[(e, f)] += delta
 						counts_e[e] += delta
 
+			
+
+
 			# M-step
 			print "\tE-step done, maximizing translation probabilities..."
 			for f, e in t.keys():
-
 				# New transition probabilities with add-n smooting
 				t[(f, e)] = (counts_ef[(e, f)] + self.add_n) / (counts_e[e] + self.add_n * self.add_n_voc_size)
 				
@@ -123,7 +127,22 @@ class IBM1:
 			
 			if self.dump_trans_probs:
 				self.dump_t(self.out_dir + self.name+"-trans-probs-iter-"+str(ts)+".txt", t)
-		
+
+		def pasa(p):
+			for f, e in t.keys():
+				if e == "newsprint":
+					p += t[(f,e)]
+					print f, t[(f,e)]
+			print p
+
+		def paso(p):
+			for f, e in t.keys():
+				if e == "NULL":
+					p += t[(f,e)]
+					print f, t[(f,e)]
+			print p
+		paso(0)
+
 		self.t = t
 		self.likelihoods = likelihoods
 
@@ -135,6 +154,7 @@ class IBM1:
 		L = 0
 		for f in F:
 			L += np.log(sum([t[(f, e)] for e in E]))
+			
 
 		# For normalization, you could multiply (substract) by (1/ (l +1) )^m
 		return L #- len(F) * np.log(len(E))
@@ -205,9 +225,9 @@ if __name__ ==  "__main__":
 	french = open('data/hansards.36.2.f').read()
 
 	M = IBM1(english, french,
-		start=0, limit=100, add_n = .00001,
+		start=0, limit=100, add_n = 0.00100,
 		name="Test", desc="Dit is een test model.", 
 		out_dir="results/")
-	M.train(3, logfreq=1000)
-	M.save_model()
+	M.train(5, logfreq=1000)
+	# M.save_model()
 	
