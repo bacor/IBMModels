@@ -130,9 +130,9 @@ class IBM1:
 
 		def pasa(p):
 			for f, e in t.keys():
-				if e == "newsprint":
+				if f == "de":
 					p += t[(f,e)]
-					print f, t[(f,e)]
+					print e, t[(f,e)]
 			print p
 
 		def paso(p):
