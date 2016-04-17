@@ -30,16 +30,26 @@ class IBM1:
 	"""
 
 	def __init__(self, english, french, 
+<<<<<<< HEAD
 		num_null = 10.0, add_n = 0.0, add_n_voc_size = 500,
 		name="", desc="", start=0, limit=-1, out_dir="", dump_trans_probs=False):
+=======
+		num_null = 1.0, add_n = 0.0, add_n_voc_size = 60000,
+		name="", desc="", start=0, limit=-1, 
+		out_dir="", dump_trans_probs=False, log=True):
+>>>>>>> master
 		self.FR = text2sentences(french)[start:limit]
 		self.EN = text2sentences(english)[start:limit]
 		self.EN = map(add_null, self.EN)
 
 		self.voc_fr = sentences2voc(self.FR)
 		self.voc_en = sentences2voc(self.EN)
+<<<<<<< HEAD
 		print "voc size", len(self.voc_en)
 		print "Done splitting sentences" 
+=======
+		if log: print "Done splitting sentences"
+>>>>>>> master
 
 		self.num_null = num_null
 		self.add_n = add_n
@@ -51,36 +61,44 @@ class IBM1:
 		self.start = start
 		self.limit = limit
 		self.dump_trans_probs = dump_trans_probs
+		self.log = log
 
-	def initialize(self, logfreq=500):
+	def initialize(self, logfreq=500, log=None, update=True):
 		"""Uniformly initializes the translation probabilities
 		Note that the translation probabilities are unnormalized
 		"""
-		print "Initializing..."
+		if log == None: log = self.log
+		if log: print "Initializing..."
 		t = Counter() 
 		for k, (E, F) in enumerate(zip(self.EN, self.FR)):
-			if (k % logfreq) == 0:
+			if (k % logfreq) == 0 and log:
 				print "\t%sk sentences initialized" % str(k/1000.0).zfill(5)
 			for f in F:
 				for e in E:
 					t[(f, e)] = 1.0
+<<<<<<< HEAD
 		
+=======
+		if update:
+			self.t = t
+
+>>>>>>> master
 		return t
 
-	def train(self, num_iter, t=None, logfreq=500):
+	def train(self, num_iter, t=None, logfreq=500, log=None):
 		"""Train the IBM1 model
 		Return:
 			t: the translation probabilities
 			likelihoods: the log-likelihood of the data after every iteration
 		"""
-		if t is None: 
-			t = self.initialize(logfreq=logfreq)
+		if log == None: log = self.log
+		if t is None: t = self.t
 		likelihoods = []
 		counts_ef = Counter()
 		counts_e  = Counter()
 
 		for ts in range(num_iter):
-			print("Start iteration %s" % ts)
+			if log: print("Start iteration %s" % ts)
 
 			t0 = time()
 			tprev = t0
@@ -89,7 +107,7 @@ class IBM1:
 
 			# E-step
 			for k, (E, F) in enumerate(zip(self.EN, self.FR)):
-				if (k % logfreq) == 0:
+				if (k % logfreq) == 0 and log:
 					print "\t%sk sentences done (%s / %ss)" % (str(k/1000.0).zfill(5), round(time()-t0, 2), round(time()-tprev, 2))
 					tprev = time()
 
@@ -105,7 +123,7 @@ class IBM1:
 
 
 			# M-step
-			print "\tE-step done, maximizing translation probabilities..."
+			if log: print "\tE-step done, maximizing translation probabilities..."
 			for f, e in t.keys():
 				# New transition probabilities with add-n smooting
 				t[(f, e)] = (counts_ef[(e, f)] + self.add_n) / (counts_e[e] + self.add_n * self.add_n_voc_size)
@@ -114,7 +132,7 @@ class IBM1:
 				if e == "NULL": 
 					t[(f, e)] *= self.num_null
 
-			print "\tE-M done. Calculating likelihoods..."
+			if log: print "\tE-M done. Calculating likelihoods..."
 			
 			# Log likelihood
 			likelihood = 0
@@ -122,8 +140,8 @@ class IBM1:
 				likelihood += self.log_likelihood(F, E, t)
 			likelihoods += [likelihood]
 
-			print "\tLog-likelhood: %s" % round(likelihood, 2)
-			print "Iteration %s done in %ss.\n" % (ts, round(time() - t0, 1))
+			if log: print "\tLog-likelhood: %s" % round(likelihood, 2)
+			if log: print "Iteration %s done in %ss.\n" % (ts, round(time() - t0, 1))
 			
 			if self.dump_trans_probs:
 				self.dump_t(self.out_dir + self.name+"-trans-probs-iter-"+str(ts)+".txt", t)
@@ -159,7 +177,7 @@ class IBM1:
 		# For normalization, you could multiply (substract) by (1/ (l +1) )^m
 		return L #- len(F) * np.log(len(E))
 
-	def posterior(i, f, E, t):
+	def posterior(self, i, f, E, t):
 		"""The probability of aligning f to E[i]
 		Or symbolically:
 		$p( a_i = j | f, e_j) = t(f | e_j) / \sum_{j=1}^l t(f | e_j)$
@@ -169,7 +187,7 @@ class IBM1:
 		return numerator/denominator if numerator != 0.0 else 0.0
 
 
-	def decode(F, E, t=None):
+	def decode(self, F, E, t=None):
 		"""Gets the Viterbi alignment for two aligned sentences
 		If alignment of some French word with the NULL-word is most 
 		probable, the French word remains unaligned.
@@ -181,11 +199,26 @@ class IBM1:
 		if t == None: t = self.t
 		alignment = []
 		for i, f in enumerate(F):
-			alignment_probs = [posterior(j, f, E, t) for j in range(len(E))]
+			alignment_probs = [self.posterior(j, f, E, t) for j in range(len(E))]
 			best = np.argmax(alignment_probs) 
 			if best != 0: 
 				alignment.append((i, best, max(alignment_probs)))
 		return alignment
+
+
+	def show_decoding(self, decoding, F, E):
+		decode_dict = Counter()
+		for i, j, p in decoding:
+			decode_dict[i] = j
+		
+		print "".ljust(80, '-')
+		print "French:  "+" ".join(F) + "\nEnglish: " + " ".join(E[1:])+"\n"
+
+		span = max(map(len, F)) + 6
+		for i, f in enumerate(F):
+			e = E[decode_dict[i]]
+			print "%s %s %s" % (i, (f+" ").ljust(span, '.'), e)
+		print "".ljust(80, '-') + "\n"
 
 
 	def dump_t(self, filename, t=None):
@@ -205,13 +238,15 @@ class IBM1:
 			return t_new
 
 	def save_model(self):
-		self.dump_t(self.out_dir + self.name+"-transition-probs.txt")
+		self.dump_t(self.out_dir + self.name+"-trans-probs.txt")
 		with open(self.out_dir + self.name+"-log.txt", "w") as outfile:
 			outfile.write("\n\n****************************************\n")
 			outfile.write("* EXPERIMENT "+self.name+"\n*\n")
 			outfile.write("* "+self.desc+"\n****************************************\n*\n")
 			outfile.write("* Stored: " + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n*\n")
 			outfile.write("* Number of null words: " + str(self.num_null) + "\n")
+			outfile.write("* Add-n: " + str(self.add_n) + "\n")
+			outfile.write("* Add-n vocabulary size: " + str(self.add_n_voc_size) + "\n")
 			outfile.write("* Trained on %s sentences (from %s to %s)\n" % (len(self.FR), self.start, self.limit))
 			outfile.write("* In %s iterations \n" % len(self.likelihoods))
 			# outfile.write("* Transition probabilities stored in: " + self.name+"-transition-probs.txt\n*\n")
@@ -227,7 +262,18 @@ if __name__ ==  "__main__":
 	M = IBM1(english, french,
 		start=0, limit=100, add_n = 0.00100,
 		name="Test", desc="Dit is een test model.", 
+<<<<<<< HEAD
 		out_dir="results/")
 	M.train(5, logfreq=1000)
+=======
+		out_dir="results/", 
+		log=True)
+	# M.load_t("results/test-transition-probs.txt")
+	M.initialize()
+	M.train(5)
+>>>>>>> master
 	# M.save_model()
 	
+	for k in range(7,20):
+		decoding =  M.decode(M.FR[k], M.EN[k])
+		M.show_decoding(decoding, M.FR[k], M.EN[k])

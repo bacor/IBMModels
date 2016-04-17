@@ -61,7 +61,7 @@ for ts in range(num_timesteps):
                         for j, e in enumerate(sentences_en[k]):
 
                                 # Update all counts
-                                delta = t[f][e] / delta_sum  
+                                delta = t[f][e] / delta_sum  # ! * q[j][(i,l,m)]
                                 counts_ef[e][f] += delta
                                 counts_e[e] += delta
                                 counts_jilm[j][(i,l,m)] += delta
